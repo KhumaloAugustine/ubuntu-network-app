@@ -1,17 +1,24 @@
 import axios from 'axios';
+import { Platform } from 'react-native';
 
 /**
  * API configuration
  * Following SOLID: Single Responsibility - API client configuration
  */
 
-// TODO: Update this to your actual API URL
-const API_BASE_URL = __DEV__
-  ? 'http://localhost:3000/api'
-  : 'https://your-production-api.com/api';
+// Android emulator uses 10.0.2.2 to access localhost
+// iOS simulator uses localhost
+const getApiUrl = () => {
+  if (__DEV__) {
+    return Platform.OS === 'android'
+      ? 'http://10.0.2.2:3000/api'
+      : 'http://localhost:3000/api';
+  }
+  return 'https://your-production-api.com/api';
+};
 
 export const apiClient = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: getApiUrl(),
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
