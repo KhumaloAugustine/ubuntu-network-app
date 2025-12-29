@@ -4,7 +4,6 @@
   "version": "0.1.0",
   "workspaces": ["mobile", "api"],
   "scripts": {
-    "install": "npm install",
     "build": "echo \"Build step - run per-package\""
   },
   "devDependencies": {

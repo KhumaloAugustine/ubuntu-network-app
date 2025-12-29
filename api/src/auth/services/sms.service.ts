@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import * as twilio from 'twilio';
+import { ConfigService } from '@nestjs/config';
+import twilio from 'twilio';
 
 /**
  * SMS service - handles sending SMS via Twilio
@@ -9,13 +10,16 @@ import * as twilio from 'twilio';
 @Injectable()
 export class SmsService {
   private twilioClient: twilio.Twilio | null = null;
+  private fromNumber: string | undefined;
 
-  constructor() {
+  constructor(private readonly configService: ConfigService) {
     // Initialize Twilio client if credentials are available
-    const accountSid = process.env.TWILIO_ACCOUNT_SID;
-    const authToken = process.env.TWILIO_AUTH_TOKEN;
+    const accountSid = this.configService.get<string>('TWILIO_ACCOUNT_SID');
+    const authToken = this.configService.get<string>('TWILIO_AUTH_TOKEN');
+    this.fromNumber = this.configService.get<string>('TWILIO_PHONE_NUMBER');
 
-    if (accountSid && authToken) {
+    // Only initialize if credentials look valid (avoid startup crash)
+    if (accountSid && authToken && accountSid.startsWith('AC') && authToken.length > 10) {
       this.twilioClient = twilio(accountSid, authToken);
     }
   }
@@ -29,11 +33,11 @@ export class SmsService {
     const message = `Your Ubuntu Network verification code is: ${otp}. Valid for 5 minutes. Do not share this code.`;
 
     // If Twilio is configured, send real SMS
-    if (this.twilioClient && process.env.TWILIO_PHONE_NUMBER) {
+    if (this.twilioClient && this.fromNumber) {
       try {
         await this.twilioClient.messages.create({
           body: message,
-          from: process.env.TWILIO_PHONE_NUMBER,
+          from: this.fromNumber,
           to: phone,
         });
         console.log(`✓ SMS sent to ${phone}`);
@@ -56,6 +60,6 @@ export class SmsService {
    * @returns True if configured
    */
   isConfigured(): boolean {
-    return this.twilioClient !== null && !!process.env.TWILIO_PHONE_NUMBER;
+    return this.twilioClient !== null && !!this.fromNumber;
   }
 }

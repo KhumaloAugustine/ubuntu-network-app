@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
 
 /**
@@ -6,7 +7,11 @@ import { AuthModule } from './auth/auth.module';
  * Following SOLID principles: Single Responsibility - orchestrates application modules
  */
 @Module({
-  imports: [AuthModule],
+  imports: [
+    // Load .env and make config global
+    ConfigModule.forRoot({ isGlobal: true }),
+    AuthModule,
+  ],
   controllers: [],
   providers: [],
 })
