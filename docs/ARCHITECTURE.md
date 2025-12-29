@@ -1,158 +1,369 @@
-# Ubuntu Network - Architecture & Design
+# Architecture & Design
 
 ## System Overview
 
-**Ubuntu Network** is a Safety-First Community Connection Platform that enables verified community members to connect, share skills, and support each other through a multi-tiered verification and oversight system.
+Ubuntu Network is a safety-first community platform built on a layered architecture:
 
-### Core Principle
-> "Trust is built, not assumed." - Every connection goes through community verification. Safety is our highest priority.
+```
+┌─────────────────────────────────────────────────────────┐
+│              Mobile (React Native)                       │
+│  - SMS OTP Authentication                              │
+│  - Photo Verification with Daily Codes                 │
+│  - Activity Browsing & Requests                        │
+│  - Real-time Session Monitoring                        │
+│  - Panic Button & Emergency Alerts                     │
+└─────────────────────┬───────────────────────────────────┘
+                      │ HTTPS + TLS
+┌─────────────────────▼───────────────────────────────────┐
+│              API Gateway & Auth                          │
+│  - JWT Token Management                                │
+│  - Rate Limiting                                       │
+│  - Request Validation                                  │
+└─────────────────────┬───────────────────────────────────┘
+                      │
+    ┌─────────────────┼─────────────────┐
+    │                 │                 │
+┌───▼───┐      ┌─────▼──────┐    ┌────▼─────┐
+│Auth   │      │Core        │    │Real-time │
+│Module │      │Services    │    │Service   │
+└───────┘      └────────────┘    └──────────┘
+    │                 │                 │
+    └─────────────────┼─────────────────┘
+                      │
+        ┌─────────────┼─────────────┐
+        │             │             │
+    ┌───▼────┐   ┌───▼────┐   ┌───▼────┐
+    │Database│   │Cache   │   │Storage │
+    │(PG)    │   │(Redis) │   │(S3)    │
+    └────────┘   └────────┘   └────────┘
 
-## Technology Stack
+```
 
-### Mobile Application
-- **Framework:** React Native (Bare workflow)
-- **Language:** TypeScript
-- **Navigation:** React Navigation
-- **State Management:** React Context (planned: Redux or Zustand)
-- **HTTP Client:** Axios
-- **Security:** 
-  - Local encrypted storage (SQLCipher - planned)
-  - Signal Protocol for E2E messaging (planned)
+## Layered Architecture
 
-### Backend API
-- **Framework:** NestJS
-- **Language:** TypeScript
-- **Architecture:** Modular, microservices-ready
-- **Database:** PostgreSQL (planned)
-- **Caching:** Redis (planned)
-- **SMS:** Twilio (South Africa +27)
-- **Authentication:** JWT with device binding (planned)
+### 1. Presentation Layer (Mobile)
+- React Native with bare workflow (maximum control)
+- TypeScript strict mode
+- Component-based UI architecture
+- Service locator pattern for dependency injection
 
-### Infrastructure
-- **CI/CD:** GitHub Actions
-- **Hosting:** Cloud-agnostic (GCP/AWS/Azure ready)
-- **Monitoring:** Prometheus + Grafana (planned)
-- **Logging:** Structured logging with audit trails
+### 2. API Layer (NestJS)
+- REST endpoints with OpenAPI documentation
+- Authentication/Authorization middleware
+- Input validation (class-validator)
+- Error handling & exceptions
+- Audit logging
 
-## Core Principles
+### 3. Business Logic Layer
+- Domain services (Auth, Activities, Vouching)
+- Business rule enforcement
+- Transaction management
+- Pattern detection for safety
 
-### 1. SOLID Principles
-- **Single Responsibility:** Each module, service, and class has one well-defined purpose
-- **Open/Closed:** Extensible without modifying existing code
-- **Liskov Substitution:** Interfaces are substitutable
-- **Interface Segregation:** No client depends on methods it doesn't use
-- **Dependency Inversion:** Depend on abstractions, not concretions
+### 4. Data Access Layer
+- Repository pattern for data abstraction
+- Query builders for complex queries
+- Database migrations
+- Encryption for sensitive data
 
-### 2. DRY (Don't Repeat Yourself)
-- Reusable services and utilities
-- Shared types and interfaces
-- Common validation logic
+### 5. Infrastructure Layer
+- Database (PostgreSQL)
+- Cache (Redis)
+- File storage (S3)
+- External APIs (Twilio, Signal)
+- Logging & monitoring
 
-### 3. Clean Code
-- Self-documenting code with clear naming
-- Comprehensive documentation
-- Type safety with TypeScript
-- Unit and integration tests
+## SOLID Principles Implementation
 
-## Security Architecture
+### Single Responsibility Principle (SRP)
+Each class has one reason to change:
+```
+❌ Bad: UserService handles auth, validation, and database
+✅ Good:
+   - AuthService: authentication logic
+   - UserValidationService: validation rules
+   - UserRepository: data access
+```
 
-### Four-Layer Protection System
+### Open/Closed Principle (OCP)
+Classes are open for extension, closed for modification:
+```typescript
+// Base strategy
+interface OtpStrategy {
+  sendOtp(phone: string, otp: string): Promise<void>;
+}
 
-#### Layer 1: Verification Wall
-1. Phone number verification (SMS OTP)
-2. Photo verification with daily code
-3. Community vouching system (3 vouches from Tier 3+ users)
-4. Background declaration review
+// Extensions
+class TwilioOtpStrategy implements OtpStrategy { }
+class MockOtpStrategy implements OtpStrategy { }  // Testing
+```
 
-#### Layer 2: Activity Safeguards
-- Dual approval for youth interactions (parent + guardian)
-- "Three-Eyes" rule (no one-on-one with minors)
-- Safe zone enforcement
-- Time-boxed sessions
-- GPS check-in/check-out
+### Liskov Substitution Principle (LSP)
+Subclasses must be substitutable for parent classes:
+```typescript
+interface Activity {
+  start(): Promise<void>;
+  end(): Promise<void>;
+}
 
-#### Layer 3: Real-Time Monitoring
-- Session GPS tracking
-- Panic button
-- Regular check-in prompts
-- Communication logging
-- Pattern detection
+// All implementations must honor the contract
+```
 
-#### Layer 4: Community Oversight
-- Monthly safety reviews
-- Annual re-verification
-- Transparent reporting
-- Community Guardian powers
+### Interface Segregation Principle (ISP)
+Clients shouldn't depend on interfaces they don't use:
+```typescript
+// ❌ Fat interface
+interface User {
+  authenticate();
+  createActivity();
+  vouch();
+  adminActions();
+}
 
-## User Tier System
+// ✅ Segregated interfaces
+interface Authenticable { authenticate(); }
+interface ActivityCreator { createActivity(); }
+interface Vounder { vouch(); }
+interface Administrator { adminActions(); }
+```
 
-### Tier 1: Basic User (Green)
-- SMS verification only
-- Can browse and request services
-- Cannot offer services
+### Dependency Inversion Principle (DIP)
+Depend on abstractions, not concrete implementations:
+```typescript
+// ❌ Depends on concrete class
+class AuthService {
+  constructor(private otpService: TwilioOtpService) { }
+}
 
-### Tier 2: Verified Helper (Blue)
-- 3 Tier 3 vouches + ID verification
-- Can offer services
-- Cannot work with minors alone
+// ✅ Depends on abstraction
+class AuthService {
+  constructor(private otpService: IOtpService) { }
+}
+```
 
-### Tier 3: Trusted Mentor (Gold)
-- Community Council interview + background check
-- Can work with youth (with oversight)
-- Can vouch for others
+## DRY (Don't Repeat Yourself) Patterns
 
-### Tier 4: Community Guardian (Purple)
-- Elected by community
-- Can pause activities
-- Safety oversight authority
+### 1. Shared DTOs
+```
+common/dtos/
+├── PaginationDTO.ts
+├── ResponseDTO.ts
+├── ErrorDTO.ts
+└── TimestampedDTO.ts
+```
 
-## Data Security
+### 2. Reusable Guards & Interceptors
+```
+common/guards/
+├── JwtAuthGuard.ts
+├── RoleGuard.ts
+└── ThrottleGuard.ts
 
-### Encryption
-- **PII:** AES-256 encryption
-- **Messages:** End-to-end encryption (Signal Protocol)
-- **Storage:** Encrypted database columns
-- **Transport:** TLS 1.3
+common/interceptors/
+├── LoggingInterceptor.ts
+├── TransformInterceptor.ts
+└── ErrorInterceptor.ts
+```
 
-### Authentication
-- Two-factor: Phone + PIN
-- Device binding
-- Session timeout (15 minutes)
-- Token rotation
+### 3. Base Classes
+```typescript
+// All entities inherit common fields
+abstract class BaseEntity {
+  id: UUID;
+  createdAt: Date;
+  updatedAt: Date;
+  createdBy: UUID;
+}
+```
 
-### Audit Logging
-- Immutable logs (append-only)
-- Every action logged with user, timestamp, location
-- 7-year retention for safety incidents
-- Access controls for log viewing
+### 4. Utility Functions
+Centralized in `common/utils/`:
+- Encryption/Decryption
+- Phone number formatting
+- GPS validation
+- Date/time operations
 
-## Next Steps
+## Database Design
 
-### Phase 1: Foundation (Completed)
-- ✅ Project scaffold
-- ✅ SMS authentication flow
-- ✅ Basic mobile UI
+### Core Entities
+```
+Users
+├── Tier 1: Basic (browsing only)
+├── Tier 2: Verified Helper
+├── Tier 3: Trusted Mentor
+└── Tier 4: Community Guardian
 
-### Phase 2: Core Features (In Progress)
-- [ ] PostgreSQL database integration
-- [ ] User profile management
-- [ ] Photo verification system
-- [ ] Vouching system
-- [ ] Safe locations database
+Activities
+├── Request → Approval → Active → Completed
+├── Location verification
+├── Time-boxing enforcement
+└── Participant tracking
 
-### Phase 3: Expansion (Planned)
-- [ ] Activity request/approval flow
-- [ ] GPS monitoring
-- [ ] Panic button implementation
-- [ ] Signal Protocol integration
-- [ ] Guardian dashboard
-- [ ] Pattern detection
-- [ ] Community reporting
+Vouches
+├── One-directional (A vouches for B)
+├── Relationship metadata
+└── Confidence scoring
 
-## References
+SafeLocations
+├── GPS coordinates
+├── Verification status
+├── Safety features
+└── Operating hours
+```
 
-- [System Design Document](../README.md)
-- [API Documentation](../api/README.md)
-- [Mobile App Documentation](../mobile/README.md)
-- [Signal Protocol](https://signal.org/docs/)
-- [Twilio SMS API](https://www.twilio.com/docs/sms)
+### Security Measures
+- AES-256 encryption at application layer
+- PII in separate encrypted columns
+- Immutable audit logs
+- Role-based access control (RBAC)
+- Data retention policies
+
+## Authentication & Authorization
+
+### Authentication Flow
+1. User requests OTP with phone number
+2. Twilio sends SMS to South Africa +27 number
+3. User verifies OTP within 5 minutes
+4. Server creates JWT token (device-bound)
+5. Subsequent requests include token in Authorization header
+
+### Authorization Strategy
+```
+TIER 1 (Basic)
+├── Browse public helpers
+└── Browse public activities
+
+TIER 2 (Verified Helper)
+├── All TIER 1 permissions
+├── Create activities/mentor listings
+├── Receive vouch requests
+└── Participate in non-youth activities
+
+TIER 3 (Trusted Mentor)
+├── All TIER 2 permissions
+├── Work with youth (with dual approval)
+├── Vouch for others
+└── Approve activity requests
+
+TIER 4 (Community Guardian)
+├── All TIER 3 permissions
+├── Pause suspicious activities
+├── Approve safe locations
+├── Access to flagged incidents
+└── Safety council decision-making
+```
+
+## Error Handling Strategy
+
+### Hierarchical Exception System
+```
+BaseException
+├── ValidationException (400)
+├── AuthenticationException (401)
+├── AuthorizationException (403)
+├── NotFoundException (404)
+├── ConflictException (409)
+└── InternalServerException (500)
+```
+
+### Error Response Format
+```json
+{
+  "error": {
+    "code": "AUTH_INVALID_OTP",
+    "message": "OTP is invalid or expired",
+    "timestamp": "2025-01-01T12:00:00Z",
+    "traceId": "req-12345"
+  }
+}
+```
+
+## Testing Strategy
+
+### Unit Tests
+- Services & utilities (100% coverage)
+- Business logic isolation
+- Mocked external dependencies
+
+### Integration Tests
+- API endpoints with real DB
+- Auth flow validation
+- Data consistency
+
+### E2E Tests
+- Mobile app flows
+- Full user journeys
+- Safety mechanisms verification
+
+## Security Considerations
+
+### PII Protection
+- Encrypt phone numbers, IDs, addresses
+- Minimal data collection
+- Secure key storage (KMS)
+- Data retention policies
+
+### Communication Security
+- HTTPS/TLS for all API calls
+- End-to-end encryption for sensitive messaging (Signal Protocol)
+- Encrypted caching locally
+
+### Access Control
+- Principle of least privilege
+- Role-based permissions
+- Activity-based audit logging
+- Regular security audits
+
+## Monitoring & Observability
+
+### Metrics
+- API response times
+- Error rates by endpoint
+- Activity completion success rate
+- OTP delivery success rate
+- Session duration patterns
+
+### Logging
+- Structured JSON logs
+- Correlation IDs for request tracing
+- Sensitive data masking
+- Centralized log aggregation
+
+### Alerting
+- High error rates
+- OTP delivery failures
+- Unusual access patterns
+- Database performance issues
+
+## Deployment Strategy
+
+### Environments
+- **Dev**: Local development with mocks
+- **Staging**: Full integration testing
+- **Production**: Secure, scaled deployment
+
+### CI/CD Pipeline
+- GitHub Actions
+- Automated testing
+- Code quality checks
+- Security scanning
+- Automated deployments
+
+## Future Enhancements
+
+1. **Machine Learning**
+   - Pattern detection for safety risks
+   - Skill matching algorithm
+   - Community trust scoring
+
+2. **Advanced Features**
+   - Barter/trade system
+   - Resource marketplace
+   - Community event management
+   - Mobile wallet integration
+
+3. **Scaling**
+   - Multi-community support
+   - API federation
+   - Microservices architecture
+   - Global expansion support

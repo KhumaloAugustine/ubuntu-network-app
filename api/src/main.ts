@@ -1,30 +1,46 @@
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { AppModule } from './app.module';
+import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
+import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  
-  // Global validation pipe for DTO validation
-  app.useGlobalPipes(new ValidationPipe({
-    whitelist: true,
-    forbidNonWhitelisted: true,
-    transform: true,
-  }));
-  
-  // API prefix for all routes
-  app.setGlobalPrefix('api');
-  
-  // CORS configuration (adjust for production)
+  const configService = app.get(ConfigService);
+
+  // Global validation
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+      transformOptions: {
+        enableImplicitConversion: true,
+      },
+    }),
+  );
+
+  // Global filters and interceptors
+  app.useGlobalFilters(new GlobalExceptionFilter());
+  app.useGlobalInterceptors(new LoggingInterceptor());
+
+  // API prefix
+  app.setGlobalPrefix('api/v1');
+
+  // CORS
   app.enableCors({
-    origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
+    origin: configService.get('CORS_ORIGIN', 'localhost'),
     credentials: true,
   });
-  
-  const port = process.env.PORT || 3000;
+
+  const port = configService.get('PORT', 3000);
   await app.listen(port);
-  
-  console.log(`🚀 Ubuntu Network API listening on http://localhost:${port}/api`);
+
+  console.log(`✅ Ubuntu Network API listening on http://localhost:${port}/api/v1`);
 }
 
-bootstrap();
+bootstrap().catch((error) => {
+  console.error('❌ Failed to start application:', error);
+  process.exit(1);
+});

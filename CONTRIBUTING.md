@@ -1,208 +1,439 @@
 # Contributing to Ubuntu Network
 
-Thank you for considering contributing to Ubuntu Network! This document provides guidelines and instructions for contributing.
+We welcome contributions that help build a safer community. Please follow these guidelines.
 
 ## Code of Conduct
 
-This project follows the Ubuntu philosophy: **"I am because we are."** We are committed to providing a welcoming and safe environment for all contributors.
-
-### Our Standards
-
 - Be respectful and inclusive
-- Accept constructive criticism gracefully
-- Focus on what is best for the community
-- Show empathy towards others
-- Prioritize safety and security in all decisions
+- No discrimination, harassment, or hostile behavior
+- All voices matter
+- Report issues privately to maintainers
 
-## How to Contribute
-
-### Reporting Bugs
-
-1. Check if the bug has already been reported in Issues
-2. If not, create a new issue with:
-   - Clear, descriptive title
-   - Steps to reproduce
-   - Expected vs actual behavior
-   - Screenshots if applicable
-   - Environment details (OS, device, versions)
-
-### Suggesting Features
-
-1. Check existing issues and discussions
-2. Create a feature request with:
-   - Clear use case
-   - How it aligns with safety-first principles
-   - Mockups or examples if applicable
-
-### Code Contributions
-
-#### Before You Start
+## Before You Start
 
 1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/your-feature-name`
-3. Set up development environment (see README.md)
+2. Create a feature branch: `git checkout -b feature/your-feature`
+3. Read this entire guide
+4. Ensure your dev environment is set up correctly (see Setup section)
 
-#### Code Standards
+## Development Guidelines
 
-**Follow these principles strictly:**
+### Clean Code Standards
 
-1. **SOLID Principles**
-   - Single Responsibility: One class/function, one purpose
-   - Open/Closed: Extend, don't modify
-   - Liskov Substitution: Subtypes must be substitutable
-   - Interface Segregation: Small, focused interfaces
-   - Dependency Inversion: Depend on abstractions
+We follow SOLID principles and clean code practices:
 
-2. **DRY (Don't Repeat Yourself)**
-   - Extract reusable logic
-   - Create utility functions
-   - Use TypeScript generics
+#### Single Responsibility Principle (SRP)
+- Each class/function has ONE reason to change
+- Services handle business logic
+- Components handle UI
+- Utils handle reusable operations
 
-3. **Clean Code**
-   - Meaningful names
-   - Small functions (<20 lines)
-   - Clear comments for complex logic
-   - Type everything (TypeScript strict mode)
-
-4. **Security First**
-   - Never log sensitive data
-   - Validate all inputs
-   - Encrypt PII
-   - Follow least privilege principle
-
-#### Code Style
-
-**TypeScript:**
 ```typescript
-// ✅ Good
-export class OtpService {
-  private readonly OTP_EXPIRY_MS = 5 * 60 * 1000;
-
-  public generateOtp(phone: string): string {
-    // Clear, typed, single responsibility
-  }
+// ❌ BAD: Multiple responsibilities
+class UserService {
+  async getUser() { }
+  async validateInput() { }
+  async sendEmail() { }
+  async logErrors() { }
 }
 
-// ❌ Bad
-export class Service {
-  genOTP(p: any) {
-    // Unclear name, no types, too generic
-  }
+// ✅ GOOD: Single responsibility
+class UserService {
+  async getUser() { }
+}
+
+class ValidationService {
+  validateInput() { }
+}
+
+class EmailService {
+  async sendEmail() { }
+}
+
+class LogService {
+  logErrors() { }
 }
 ```
 
-**Naming Conventions:**
-- Classes: `PascalCase`
-- Functions/variables: `camelCase`
-- Constants: `UPPER_SNAKE_CASE`
-- Interfaces: `PascalCase` (no `I` prefix)
-- Files: `kebab-case.ts`
+#### Dependency Inversion Principle (DIP)
+- Depend on abstractions, not concrete implementations
+- Use interfaces for contracts
+- Inject dependencies
 
-#### Testing
+```typescript
+// ❌ BAD: Direct dependency
+class AuthService {
+  private api = new ApiService();
+}
 
-- Write unit tests for all business logic
-- Integration tests for API endpoints
-- E2E tests for critical flows
-- Minimum 80% code coverage
+// ✅ GOOD: Injected/singleton
+class AuthService {
+  constructor(private api: IApiService) { }
+}
+```
+
+#### DRY (Don't Repeat Yourself)
+- Extract common logic to utils
+- Create reusable components
+- Share business logic via services
+
+### Naming Conventions
+
+```typescript
+// Services: verb + Service
+class AuthService { }
+class ValidationService { }
+
+// Utils: PascalCase + Util
+class PhoneUtil { }
+class DateUtil { }
+
+// Components: PascalCase
+function UserProfile() { }
+function ActivityCard() { }
+
+// Hooks: use + CamelCase
+function useAuth() { }
+function useActivity() { }
+
+// Constants: UPPER_SNAKE_CASE
+const MAX_RETRIES = 3;
+const OTP_EXPIRY_MINUTES = 5;
+```
+
+### TypeScript Requirements
+
+- Use **strict mode** always
+- Define all types explicitly
+- No `any` types unless absolutely necessary
+- Use interfaces for public APIs
+
+```typescript
+// ✅ GOOD
+interface User {
+  id: string;
+  phone: string;
+  tier: UserTier;
+}
+
+async function getUser(id: string): Promise<User | null> {
+  // Implementation
+}
+
+// ❌ BAD
+async function getUser(id: any): any {
+  // Implementation
+}
+```
+
+### Error Handling
+
+All errors should be typed and descriptive:
+
+```typescript
+// ✅ GOOD: Custom exceptions with context
+throw new ValidationException('Invalid phone number', {
+  field: 'phone',
+  value: phone,
+  expected: '+27XXXXXXXXX'
+});
+
+// ❌ BAD: Generic errors
+throw new Error('Invalid input');
+```
+
+### Testing Requirements
+
+Write tests for:
+- **Services**: Unit tests (100% coverage expected)
+- **Utilities**: Unit tests (100% coverage)
+- **Components**: Integration tests + snapshot tests
+- **API flows**: E2E tests
 
 ```bash
-# Run tests
-npm test
-
-# Run with coverage
-npm run test:cov
+npm run test        # Run tests once
+npm run test:watch  # Watch mode
+npm run test:cov    # Coverage report
 ```
 
-#### Commit Messages
-
-Follow [Conventional Commits](https://www.conventionalcommits.org/):
+### Commit Message Format
 
 ```
-feat: add photo verification endpoint
-fix: resolve OTP expiry issue
-docs: update API documentation
-test: add tests for vouch service
-refactor: extract OTP logic to service
-chore: update dependencies
+type(scope): description
+
+[optional body]
+
+[optional footer]
 ```
 
-#### Pull Request Process
+**Types:**
+- `feat`: New feature
+- `fix`: Bug fix
+- `refactor`: Code refactor (no behavior change)
+- `style`: Code style changes
+- `test`: Test additions/updates
+- `docs`: Documentation
+- `chore`: Build, dependencies, etc.
 
-1. **Before submitting:**
-   - Run tests: `npm test`
-   - Run linter: `npm run lint`
-   - Update documentation
-   - Add/update tests
+**Examples:**
+```
+feat(auth): implement SMS OTP verification
+fix(activities): resolve GPS check-in timeout
+refactor(vouch): simplify tier assignment logic
+docs(readme): add setup instructions
+```
 
-2. **PR Description:**
-   - Reference related issue: `Closes #123`
-   - Describe changes clearly
-   - Include screenshots for UI changes
-   - List breaking changes
+### PR Process
+
+1. **Before opening PR:**
+   - Run `npm run lint` - must pass
+   - Run `npm run test` - must pass
+   - Run `npm run type-check` - must pass
+   - Rebase on latest main
+
+2. **PR Description should include:**
+   - What problem this solves
+   - How to test it
+   - Any breaking changes
+   - Screenshots (if UI change)
 
 3. **Review Process:**
-   - At least 1 approval required
-   - All checks must pass
-   - Address review feedback promptly
+   - At least 2 approvals required
+   - All conversations resolved
+   - CI/CD checks passing
 
-### Project Structure
+4. **Before Merge:**
+   - Squash commits if multiple
+   - Update related documentation
+   - Ensure commits follow format
 
+## Architecture Overview
+
+### Backend (NestJS)
 ```
-ubuntu-network-app/
-├── mobile/           # React Native app
-│   └── src/
-│       ├── screens/  # UI screens
-│       ├── services/ # API clients, business logic
-│       └── types/    # TypeScript types
-├── api/              # NestJS backend
-│   └── src/
-│       ├── auth/     # Authentication module
-│       ├── users/    # User management
-│       └── ...       # Feature modules
-├── docs/             # Documentation
-└── infra/            # Infrastructure configs
+api/
+├── common/          # Shared utilities, DTOs, filters
+├── auth/            # Authentication logic
+├── users/           # User management
+├── activities/      # Activity/session logic
+├── vouch/           # Vouching system
+├── locations/       # Safe locations
+└── database/        # ORM, migrations, entities
 ```
 
-### Development Workflow
+**Key Pattern: Services handle business logic, controllers handle HTTP**
 
-1. **Pick an issue** or create one
-2. **Assign yourself** to avoid duplicate work
-3. **Create branch**: `feature/issue-123-description`
-4. **Develop** following code standards
-5. **Test** thoroughly
-6. **Commit** with clear messages
-7. **Push** and create PR
-8. **Address** review feedback
-9. **Merge** after approval
+```typescript
+// UserController: HTTP handler
+@Controller('users')
+export class UserController {
+  @Get(':id')
+  async getUser(@Param('id') id: string) {
+    return this.userService.findById(id);
+  }
+}
 
-### Security
+// UserService: Business logic
+@Injectable()
+export class UserService {
+  async findById(id: string): Promise<User> {
+    // Implementation
+  }
+}
+```
 
-**Report security vulnerabilities privately:**
-- Email: [security contact - to be added]
-- Do NOT create public issues for security bugs
+### Mobile (React Native)
+```
+mobile/src/
+├── screens/         # Full-screen components
+├── components/      # Reusable UI components
+├── services/        # Business logic & API
+├── utils/           # Utility functions
+├── types/           # TypeScript types
+└── hooks/           # Custom React hooks
+```
 
-**Security checklist for PRs:**
-- [ ] No secrets in code
-- [ ] Input validation implemented
-- [ ] Authentication/authorization checked
-- [ ] SQL injection prevented
-- [ ] XSS prevention in place
-- [ ] CSRF tokens used
+**Key Pattern: Screens compose services + components**
 
-## Community
+```typescript
+// Screen uses service + components
+function ActivityListScreen() {
+  const { activities, loading } = useActivityService();
+  return activities.map(a => <ActivityCard activity={a} />);
+}
 
-- **Discussions:** Use GitHub Discussions for questions
-- **Issues:** Track bugs and features
-- **Pull Requests:** Submit code changes
+// Service handles API calls
+const { activities } = await activityService.getActivities();
 
-## License
+// Component just renders
+function ActivityCard({ activity }) {
+  return <View><Text>{activity.name}</Text></View>;
+}
+```
 
-By contributing, you agree that your contributions will be licensed under the MIT License.
+## Common Tasks
+
+### Adding a New API Endpoint
+
+1. **Create Entity** (if needed)
+   ```typescript
+   // database/entities/my-entity.ts
+   @Entity('my_table')
+   export class MyEntity { }
+   ```
+
+2. **Create Module**
+   ```typescript
+   // my-feature/my-feature.module.ts
+   @Module({
+     imports: [TypeOrmModule.forFeature([MyEntity])],
+     controllers: [MyController],
+     providers: [MyService],
+   })
+   export class MyFeatureModule { }
+   ```
+
+3. **Create Service**
+   ```typescript
+   // my-feature/my-feature.service.ts
+   @Injectable()
+   export class MyService {
+     async getData(): Promise<MyEntity[]> { }
+   }
+   ```
+
+4. **Create Controller**
+   ```typescript
+   // my-feature/my-feature.controller.ts
+   @Controller('my-feature')
+   export class MyController {
+     @Get()
+     async getAll() {
+       return this.myService.getData();
+     }
+   }
+   ```
+
+5. **Add Tests**
+   ```typescript
+   // my-feature/my-feature.service.spec.ts
+   describe('MyService', () => {
+     it('should fetch data', async () => {
+       const result = await service.getData();
+       expect(result).toBeDefined();
+     });
+   });
+   ```
+
+### Adding a New Screen
+
+1. **Create Screen Component**
+   ```typescript
+   // mobile/src/screens/MyScreen.tsx
+   export function MyScreen({ navigation }) {
+     return <SafeAreaView><Text>My Screen</Text></SafeAreaView>;
+   }
+   ```
+
+2. **Add to Navigation**
+   ```typescript
+   // mobile/src/navigation/RootNavigator.tsx
+   <Stack.Screen name="My" component={MyScreen} />
+   ```
+
+3. **Add Tests**
+   ```typescript
+   // mobile/src/screens/MyScreen.test.tsx
+   describe('MyScreen', () => {
+     it('renders correctly', () => {
+       const { getByText } = render(<MyScreen />);
+       expect(getByText('My Screen')).toBeTruthy();
+     });
+   });
+   ```
+
+## Performance Checklist
+
+Before committing:
+
+- [ ] No console.logs left (except DEV)
+- [ ] No unused imports
+- [ ] No unused variables
+- [ ] Proper TypeScript types everywhere
+- [ ] Functions are small (<20 lines preferred)
+- [ ] Comments explain WHY, not WHAT
+- [ ] DRY principle followed
+- [ ] No nested callbacks (use async/await)
+- [ ] Error handling implemented
+- [ ] Tests pass and cover edge cases
+
+## Security Checklist
+
+- [ ] No hardcoded secrets
+- [ ] PII encrypted where needed
+- [ ] Input validation on all APIs
+- [ ] SQL injection prevention (ORM used)
+- [ ] CORS properly configured
+- [ ] Auth guards on protected routes
+- [ ] Audit logging for sensitive actions
+- [ ] Error messages don't leak info
+
+## Documentation
+
+Every public function/class should have JSDoc:
+
+```typescript
+/**
+ * Validate South African phone number
+ * @param phone Raw phone number (e.g., 0821234567 or +27821234567)
+ * @returns true if valid format
+ * @throws ValidationException if invalid
+ */
+export function isValidPhone(phone: string): boolean { }
+```
+
+## Setup Issues?
+
+Common problems and solutions:
+
+### Build failures
+```bash
+# Clear cache
+npm run clean
+npm install
+
+# Rebuild
+npm run build
+```
+
+### Port already in use
+```bash
+# Port 3000 (API)
+lsof -i :3000 | grep node | awk '{print $2}' | xargs kill -9
+
+# Port 8081 (Metro)
+lsof -i :8081 | grep node | awk '{print $2}' | xargs kill -9
+```
+
+### Module not found
+```bash
+# Check paths in tsconfig
+# Ensure all imports use correct path aliases
+# Clear node_modules and reinstall
+rm -rf node_modules package-lock.json
+npm install
+```
 
 ## Questions?
 
-Open a discussion or reach out to maintainers.
+1. Check existing docs and issues
+2. Ask in GitHub discussions
+3. Contact maintainers privately for security issues
+
+## License
+
+By contributing, you agree your code will be licensed under MIT.
 
 ---
 
-**Thank you for helping make communities safer! 🤝**
+**Thank you for contributing to Ubuntu Network! 🙌**

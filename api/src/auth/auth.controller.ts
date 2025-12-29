@@ -1,51 +1,35 @@
-import { Controller, Post, Body, HttpException, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { RequestOtpDto, VerifyOtpDto } from './dto/auth.dto';
+import { RequestOtpDTO, VerifyOtpDTO, AuthResponseDTO } from './dto/auth.dto';
+import { ApiResponseDTO } from '../common/dtos/response.dto';
 
 /**
- * Authentication controller
- * Handles HTTP requests for authentication endpoints
- * Following SOLID: Single Responsibility - handles HTTP layer only
+ * Authentication Controller
+ * Handles OTP and JWT flows
  */
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private authService: AuthService) {}
 
   /**
-   * Request OTP for phone number verification
-   * @param requestOtpDto - Contains phone number
-   * @returns Success message indicating OTP was sent
+   * Request OTP for phone number
+   * POST /api/v1/auth/request-otp
    */
   @Post('request-otp')
-  async requestOtp(@Body() requestOtpDto: RequestOtpDto) {
-    try {
-      return await this.authService.requestOtp(requestOtpDto.phone);
-    } catch (error) {
-      throw new HttpException(
-        error.message || 'Failed to send OTP',
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
-    }
+  @HttpCode(200)
+  async requestOtp(@Body() dto: RequestOtpDTO) {
+    const result = await this.authService.requestOtp(dto);
+    return new ApiResponseDTO(result, 'OTP sent successfully');
   }
 
   /**
-   * Verify OTP and authenticate user
-   * @param verifyOtpDto - Contains phone, OTP code, and optional device ID
-   * @returns Authentication token and user data
+   * Verify OTP and get JWT token
+   * POST /api/v1/auth/verify-otp
    */
   @Post('verify-otp')
-  async verifyOtp(@Body() verifyOtpDto: VerifyOtpDto) {
-    try {
-      return await this.authService.verifyOtp(
-        verifyOtpDto.phone,
-        verifyOtpDto.otp,
-        verifyOtpDto.deviceId
-      );
-    } catch (error) {
-      throw new HttpException(
-        error.message || 'OTP verification failed',
-        HttpStatus.UNAUTHORIZED
-      );
-    }
+  @HttpCode(200)
+  async verifyOtp(@Body() dto: VerifyOtpDTO): Promise<ApiResponseDTO<AuthResponseDTO>> {
+    const result = await this.authService.verifyOtp(dto);
+    return new ApiResponseDTO(result, 'Authentication successful');
   }
 }

@@ -1,38 +1,40 @@
-import { IsString, IsNotEmpty, IsOptional, Matches } from 'class-validator';
+import { IsPhoneNumber, IsString, Length } from 'class-validator';
 
 /**
- * DTO for OTP request
- * Following SOLID: Single Responsibility - validates OTP request data
+ * Request OTP DTO
+ * Validates phone number format for South African numbers
  */
-export class RequestOtpDto {
+export class RequestOtpDTO {
   @IsString()
-  @IsNotEmpty()
-  @Matches(/^\+27\d{9}$/, {
-    message: 'Phone must be a valid South African number (+27XXXXXXXXX)',
-  })
   phone: string;
 }
 
 /**
- * DTO for OTP verification
- * Following SOLID: Single Responsibility - validates OTP verification data
+ * Verify OTP DTO
+ * Validates OTP code and device binding
  */
-export class VerifyOtpDto {
+export class VerifyOtpDTO {
   @IsString()
-  @IsNotEmpty()
-  @Matches(/^\+27\d{9}$/, {
-    message: 'Phone must be a valid South African number (+27XXXXXXXXX)',
-  })
   phone: string;
 
   @IsString()
-  @IsNotEmpty()
-  @Matches(/^\d{6}$/, {
-    message: 'OTP must be a 6-digit code',
-  })
+  @Length(6, 6, { message: 'OTP must be 6 digits' })
   otp: string;
 
-  @IsOptional()
   @IsString()
-  deviceId?: string;
+  deviceId: string;
+}
+
+/**
+ * Auth response DTO
+ */
+export class AuthResponseDTO {
+  token: string;
+  user: {
+    id: string;
+    phone: string;
+    displayName: string;
+    tier: number;
+  };
+  expiresIn: string;
 }

@@ -1,30 +1,26 @@
 import { Injectable } from '@nestjs/common';
-
-interface OtpEntry {
-  otp: string;
-  expiresAt: number;
-  attempts: number;
-}
+import { ValidationException } from '../../common/exceptions/base.exception';
 
 /**
- * OTP service - manages OTP generation, storage, and verification
- * Following SOLID: Single Responsibility - handles OTP logic only
- * Following DRY: Reusable OTP operations
+ * OTP Service
+ * Implements Single Responsibility: manages OTP generation and validation
+ * Depends on abstraction (injected strategies), not concrete implementations (DIP)
  */
 @Injectable()
 export class OtpService {
-  private readonly otpStore = new Map<string, OtpEntry>();
-  private readonly OTP_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
+  private otpStore = new Map<string, { otp: string; expiresAt: number; attempts: number }>();
+  private readonly OTP_LENGTH = 6;
+  private readonly OTP_EXPIRY_MINUTES = 5;
   private readonly MAX_ATTEMPTS = 3;
 
   /**
-   * Generate a 6-digit OTP and store it
-   * @param phone - Phone number
-   * @returns Generated OTP
+   * Generate and store OTP
+   * @param phone Phone number
+   * @returns OTP code
    */
   generateOtp(phone: string): string {
-    const otp = this.createRandomOtp();
-    const expiresAt = Date.now() + this.OTP_EXPIRY_MS;
+    const otp = this.randomOtp();
+    const expiresAt = Date.now() + this.OTP_EXPIRY_MINUTES * 60 * 1000;
 
     this.otpStore.set(phone, {
       otp,
@@ -32,61 +28,61 @@ export class OtpService {
       attempts: 0,
     });
 
-    // Schedule cleanup after expiry
-    setTimeout(() => this.clearOtp(phone), this.OTP_EXPIRY_MS);
+    // Debug logging (remove in production)
+    console.log(`[DEV] OTP for ${phone}: ${otp}`);
 
     return otp;
   }
 
   /**
-   * Verify an OTP
-   * @param phone - Phone number
-   * @param otp - OTP to verify
-   * @returns True if valid
+   * Verify OTP code
+   * @param phone Phone number
+   * @param otp Code to verify
+   * @throws ValidationException if OTP invalid or expired
    */
-  verifyOtp(phone: string, otp: string): boolean {
+  verifyOtp(phone: string, otp: string): void {
     const entry = this.otpStore.get(phone);
 
     if (!entry) {
-      return false;
+      throw new ValidationException('OTP not found. Request a new OTP.', { field: 'otp' });
     }
 
-    // Check expiry
     if (Date.now() > entry.expiresAt) {
-      this.clearOtp(phone);
-      return false;
+      this.otpStore.delete(phone);
+      throw new ValidationException('OTP expired. Request a new OTP.', { field: 'otp' });
     }
 
-    // Check attempts
     if (entry.attempts >= this.MAX_ATTEMPTS) {
-      this.clearOtp(phone);
-      return false;
+      this.otpStore.delete(phone);
+      throw new ValidationException('Too many failed attempts. Request a new OTP.', { field: 'otp' });
     }
 
-    // Increment attempts
-    entry.attempts++;
-
-    // Verify OTP
     if (entry.otp !== otp) {
-      return false;
+      entry.attempts++;
+      throw new ValidationException('OTP is invalid.', { field: 'otp' });
     }
 
-    return true;
-  }
-
-  /**
-   * Clear OTP for a phone number
-   * @param phone - Phone number
-   */
-  clearOtp(phone: string): void {
+    // Clean up
     this.otpStore.delete(phone);
   }
 
   /**
-   * Create a random 6-digit OTP
-   * @returns 6-digit OTP string
+   * Check if OTP exists and is not expired (without validation)
    */
-  private createRandomOtp(): string {
+  hasValidOtp(phone: string): boolean {
+    const entry = this.otpStore.get(phone);
+    if (!entry) return false;
+    if (Date.now() > entry.expiresAt) {
+      this.otpStore.delete(phone);
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Generate random 6-digit OTP
+   */
+  private randomOtp(): string {
     return Math.floor(100000 + Math.random() * 900000).toString();
   }
 }

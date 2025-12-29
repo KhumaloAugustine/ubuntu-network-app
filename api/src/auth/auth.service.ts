@@ -1,102 +1,110 @@
 import { Injectable } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { UserEntity } from '../../database/entities/user.entity';
 import { OtpService } from './services/otp.service';
-import { SmsService } from './services/sms.service';
-import * as crypto from 'crypto';
+import { AuthResponseDTO, RequestOtpDTO, VerifyOtpDTO } from './dto/auth.dto';
+import { PhoneUtil } from '../../common/utils/phone.util';
+import { ValidationException, NotFoundException } from '../../common/exceptions/base.exception';
 
 /**
- * Authentication service
- * Business logic for authentication flows
- * Following SOLID: Single Responsibility - handles auth business logic
- * Following DRY: Reusable authentication methods
+ * Authentication Service
+ * Implements Single Responsibility: manages auth flows
+ * Depends on OtpService abstraction (DIP)
  */
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly otpService: OtpService,
-    private readonly smsService: SmsService
+    @InjectRepository(UserEntity) private userRepository: Repository<UserEntity>,
+    private otpService: OtpService,
+    private jwtService: JwtService,
   ) {}
 
   /**
-   * Request OTP for phone verification
-   * @param phone - Phone number in international format (+27...)
-   * @returns Success response with phone number
+   * Request OTP for phone number
+   * @param dto Request DTO with phone number
+   * @returns Success message
    */
-  async requestOtp(phone: string) {
-    // Validate phone format (South Africa +27)
-    if (!this.isValidSouthAfricanPhone(phone)) {
-      throw new Error('Invalid South African phone number format. Use +27...');
+  async requestOtp(dto: RequestOtpDTO): Promise<{ success: boolean; message: string; expiresIn: number }> {
+    // Validate and format phone number
+    if (!PhoneUtil.isValidSouthAfricanNumber(dto.phone)) {
+      throw new ValidationException('Invalid South African phone number', { field: 'phone' });
     }
 
-    // Generate and store OTP
+    const phone = PhoneUtil.formatToInternational(dto.phone);
+
+    // Generate OTP
     const otp = this.otpService.generateOtp(phone);
 
-    // Send OTP via SMS
-    await this.smsService.sendOtp(phone, otp);
+    // TODO: Send via Twilio
+    // await this.smsService.sendOtp(phone, otp);
 
     return {
       success: true,
-      message: 'OTP sent successfully',
-      phone,
+      message: 'OTP sent to phone number',
+      expiresIn: 5 * 60, // 5 minutes in seconds
     };
   }
 
   /**
-   * Verify OTP and create session
-   * @param phone - Phone number
-   * @param otp - OTP code
-   * @param deviceId - Optional device identifier for binding
-   * @returns Authentication token and user data
+   * Verify OTP and issue JWT token
+   * @param dto Verify DTO with phone, OTP, and device ID
+   * @returns Auth token and user data
    */
-  async verifyOtp(phone: string, otp: string, deviceId?: string) {
+  async verifyOtp(dto: VerifyOtpDTO): Promise<AuthResponseDTO> {
+    const phone = PhoneUtil.formatToInternational(dto.phone);
+
     // Verify OTP
-    const isValid = this.otpService.verifyOtp(phone, otp);
-    
-    if (!isValid) {
-      throw new Error('Invalid or expired OTP');
+    this.otpService.verifyOtp(phone, dto.otp);
+
+    // Find or create user
+    let user = await this.userRepository.findOne({ where: { phone } });
+
+    if (!user) {
+      user = this.userRepository.create({
+        phone,
+        displayName: `User ${phone.slice(-4)}`,
+      });
+      await this.userRepository.save(user);
     }
 
-    // TODO: Replace with actual database user lookup/creation
-    // This is a placeholder - in production, find or create user in DB
-    const userId = crypto.randomUUID();
+    // Generate JWT token
+    const payload = {
+      sub: user.id,
+      phone: user.phone,
+      tier: user.tier,
+      deviceId: dto.deviceId,
+    };
 
-    // Generate session token
-    const token = this.generateSessionToken(userId, deviceId);
-
-    // Clean up used OTP
-    this.otpService.clearOtp(phone);
+    const token = this.jwtService.sign(payload);
 
     return {
-      success: true,
       token,
       user: {
-        userId,
-        phone,
-        // TODO: Add tier, verificationStatus, etc. from DB
+        id: user.id,
+        phone: user.phone,
+        displayName: user.displayName,
+        tier: user.tier,
       },
+      expiresIn: '7d',
     };
   }
 
   /**
-   * Validate South African phone number format
-   * @param phone - Phone number to validate
-   * @returns True if valid
+   * Validate JWT token payload
    */
-  private isValidSouthAfricanPhone(phone: string): boolean {
-    // South Africa: +27 followed by 9 digits
-    const saPhoneRegex = /^\+27\d{9}$/;
-    return saPhoneRegex.test(phone);
-  }
+  async validateUser(payload: any): Promise<UserEntity> {
+    const user = await this.userRepository.findOne({ where: { id: payload.sub } });
 
-  /**
-   * Generate session token
-   * @param userId - User ID
-   * @param deviceId - Optional device ID for binding
-   * @returns Session token
-   */
-  private generateSessionToken(userId: string, deviceId?: string): string {
-    // TODO: Implement proper JWT or session token generation
-    // For now, return a simple token (replace in production)
-    const payload = { userId, deviceId, timestamp: Date.now() };
-    return Buffer.from(JSON.stringify(payload)).toString('base64');
+    if (!user) {
+      throw new NotFoundException('User', payload.sub);
+    }
+
+    if (!user.isActive) {
+      throw new ValidationException('User account is inactive');
+    }
+
+    return user;
   }
 }

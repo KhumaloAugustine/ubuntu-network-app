@@ -1,18 +1,28 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './auth/auth.module';
+import { UsersModule } from './users/users.module';
+import { ActivitiesModule } from './activities/activities.module';
+import { VouchModule } from './vouch/vouch.module';
+import { LocationsModule } from './locations/locations.module';
+import { HealthController } from './health.controller';
 
-/**
- * Root application module
- * Following SOLID principles: Single Responsibility - orchestrates application modules
- */
 @Module({
   imports: [
-    // Load .env and make config global
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: ['.env.local', '.env'],
+    }),
+    DatabaseModule,
     AuthModule,
+    UsersModule,
+    ActivitiesModule,
+    VouchModule,
+    LocationsModule,
   ],
-  controllers: [],
+  controllers: [HealthController],
   providers: [],
 })
 export class AppModule {}

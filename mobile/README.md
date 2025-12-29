@@ -1,79 +1,335 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# Ubuntu Network - Mobile App
 
-# Getting Started
+React Native (bare workflow) mobile app for Ubuntu Network community safety platform.
 
->**Note**: Make sure you have completed the [React Native - Environment Setup](https://reactnative.dev/docs/environment-setup) instructions till "Creating a new application" step, before proceeding.
+## Architecture
 
-## Step 1: Start the Metro Server
+The mobile app follows clean architecture principles:
 
-First, you will need to start **Metro**, the JavaScript _bundler_ that ships _with_ React Native.
-
-To start Metro, run the following command from the _root_ of your React Native project:
-
-```bash
-# using npm
-npm start
-
-# OR using Yarn
-yarn start
+```
+src/
+├── screens/           # UI screens (OTP, onboarding, home, activities, etc.)
+├── components/        # Reusable UI components
+├── services/          # Business logic & API calls
+│   ├── api.service.ts # Centralized API client
+│   └── storage.service.ts # Local storage management
+├── utils/             # Utility functions
+│   ├── phone.util.ts  # Phone formatting
+│   ├── validation.util.ts # Input validation
+│   └── device.util.ts # Device utilities
+├── types/             # TypeScript type definitions
+├── hooks/             # Custom React hooks
+├── navigation/        # React Navigation setup
+└── App.tsx           # Root component
 ```
 
-## Step 2: Start your Application
+## Setup
 
-Let Metro Bundler run in its _own_ terminal. Open a _new_ terminal from the _root_ of your React Native project. Run the following command to start your _Android_ or _iOS_ app:
+### Prerequisites
+- Node.js 18+
+- npm or yarn
+- Android Studio (for Android development)
+- Xcode (for iOS development)
+- React Native CLI
 
-### For Android
+### Installation
 
 ```bash
-# using npm
+# Install dependencies
+npm install
+
+# Android setup
 npm run android
 
-# OR using Yarn
-yarn android
-```
-
-### For iOS
-
-```bash
-# using npm
+# iOS setup (macOS only)
 npm run ios
 
-# OR using Yarn
-yarn ios
+# Or start Metro bundler separately
+npm start
 ```
 
-If everything is set up _correctly_, you should see your new app running in your _Android Emulator_ or _iOS Simulator_ shortly provided you have set up your emulator/simulator correctly.
+### Project Structure Details
 
-This is one way to run your app — you can also run it directly from within Android Studio and Xcode respectively.
+#### Screens
+- **OnboardingScreen**: SMS OTP verification
+- **PhotoVerificationScreen**: Camera + daily code verification
+- **HomeScreen**: Main navigation hub
+- **ActivitiesScreen**: Browse/manage activities
+- **VouchScreen**: Community vouching system
+- **ProfileScreen**: User profile & tier information
 
-## Step 3: Modifying your App
+#### Services
+- **ApiService**: Centralized axios client with interceptors
+- **StorageService**: AsyncStorage wrapper for secure local storage
+- **AuthService**: Authentication state management
+- **LocationService**: GPS tracking & validation
 
-Now that you have successfully run the app, let's modify it.
+#### Utils
+- **PhoneUtil**: South African phone number formatting
+- **ValidationUtil**: Input validation (OTP, email, etc.)
+- **DeviceUtil**: Device ID generation & retrieval
+- **EncryptionUtil**: Local data encryption
 
-1. Open `App.tsx` in your text editor of choice and edit some lines.
-2. For **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Developer Menu** (<kbd>Ctrl</kbd> + <kbd>M</kbd> (on Window and Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (on macOS)) to see your changes!
+## Key Features
 
-   For **iOS**: Hit <kbd>Cmd ⌘</kbd> + <kbd>R</kbd> in your iOS Simulator to reload the app and see your changes!
+### 1. Authentication Flow
+```
+SMS OTP Request → Verify OTP → JWT Token → Store Locally → Auto-refresh
+```
 
-## Congratulations! :tada:
+### 2. Photo Verification
+```
+Camera → Capture with Daily Code → Upload → Server Verification → Status
+```
 
-You've successfully run and modified your React Native App. :partying_face:
+### 3. Real-time Monitoring
+```
+Activity Start → GPS Check-in → Periodic Check-ins → Activity End → GPS Check-out
+```
 
-### Now what?
+### 4. Panic Button
+```
+Press Button → Immediate GPS → Alert Community Guardians → Auto-call Emergency Contacts
+```
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [Introduction to React Native](https://reactnative.dev/docs/getting-started).
+### 5. End-to-End Encrypted Messaging
+- Uses libsignal (Signal Protocol)
+- Keys stored in secure enclave / keystore
+- Server has no access to plaintext
 
-# Troubleshooting
+## Clean Code Principles Applied
 
-If you can't get this to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
+### Single Responsibility Principle
+- Each service has one reason to change
+- Screens manage UI, services manage logic
 
-# Learn More
+### Dependency Injection
+```typescript
+// ❌ Bad: Direct dependency
+const service = new ApiService();
 
-To learn more about React Native, take a look at the following resources:
+// ✅ Good: Injected/singleton
+import apiService from '@services/api.service';
+```
 
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+### Interface Segregation
+```typescript
+// ✅ Small, focused interfaces
+interface IAuthService {
+  requestOtp(phone: string): Promise<void>;
+  verifyOtp(phone: string, otp: string): Promise<AuthToken>;
+}
+```
+
+### DRY (Don't Repeat Yourself)
+- Utility functions for common operations
+- Reusable components
+- Custom hooks for logic sharing
+
+### Type Safety
+- Strict TypeScript configuration
+- Complete type coverage
+- Validated inputs
+
+## API Integration
+
+### Configuration
+
+```typescript
+// BaseURL configured for development
+const API_BASE_URL = 'http://localhost:3000/api/v1';
+
+// Auto-adds JWT token to requests
+// Handles 401 errors (token expiration)
+```
+
+### Making API Calls
+
+```typescript
+// Service-based
+import apiService from '@services/api.service';
+
+const result = await apiService.requestOtp('+27821234567');
+const auth = await apiService.verifyOtp(phone, otp, deviceId);
+
+// Or use hooks (preferred)
+const { data, loading, error } = useAuth();
+```
+
+## Local Storage (Encrypted)
+
+```typescript
+import StorageService from '@services/storage.service';
+
+// Store sensitive data encrypted
+await StorageService.setSecure('authToken', token);
+const token = await StorageService.getSecure('authToken');
+```
+
+## Testing
+
+### Unit Tests
+
+```bash
+npm run test
+npm run test:watch
+```
+
+### Type Checking
+
+```bash
+npm run type-check
+```
+
+## Development Workflow
+
+### 1. Create a New Screen
+
+```typescript
+// src/screens/MyScreen.tsx
+import React, { useState } from 'react';
+import { SafeAreaView, View, Text } from 'react-native';
+
+export function MyScreen() {
+  return (
+    <SafeAreaView>
+      <Text>My Screen</Text>
+    </SafeAreaView>
+  );
+}
+```
+
+### 2. Add a Service
+
+```typescript
+// src/services/my.service.ts
+class MyService {
+  async doSomething(): Promise<Result> {
+    // Logic here
+  }
+}
+
+export default new MyService();
+```
+
+### 3. Use Service in Component
+
+```typescript
+import myService from '@services/my.service';
+
+function MyComponent() {
+  const [result, setResult] = useState(null);
+
+  useEffect(() => {
+    myService.doSomething().then(setResult);
+  }, []);
+
+  return <Text>{result}</Text>;
+}
+```
+
+## Debugging
+
+### Metro Bundler
+```bash
+npm start
+```
+
+### Chrome DevTools
+- Press `Cmd+D` (macOS) or `Ctrl+M` (Android)
+- Select "Debug JS Remotely"
+
+### React Native Debugger
+```bash
+npm install -g react-native-debugger
+react-native-debugger
+```
+
+## Performance Optimization
+
+- Lazy load screens with React.lazy()
+- Memoize expensive computations with useMemo
+- Use FlatList for long lists instead of ScrollView
+- Optimize re-renders with React.memo
+
+## Security Considerations
+
+### PII Protection
+- Encrypt phone numbers locally
+- Never log sensitive data
+- Use HTTPS for all API calls
+- Device pin for authentication
+
+### Storage
+- AsyncStorage for non-sensitive data
+- Encrypted storage for tokens & keys
+- Clear sensitive data on logout
+
+### Network
+- Certificate pinning
+- Request/response signing
+- Timeout protection
+
+## Navigation Structure
+
+```
+Root Navigator
+├── Onboarding Stack (not authenticated)
+│   ├── RequestOtpScreen
+│   ├── VerifyOtpScreen
+│   └── PhotoVerificationScreen
+└── App Stack (authenticated)
+    ├── HomeScreen
+    ├── ActivitiesStack
+    │   ├── ActivitiesScreen
+    │   └── ActivityDetailScreen
+    ├── VouchStack
+    └── ProfileStack
+```
+
+## Troubleshooting
+
+### Metro Bundler Issues
+```bash
+# Reset cache
+npm start -- --reset-cache
+
+# Kill bundler process
+lsof -i :8081 | grep node | awk '{print $2}' | xargs kill -9
+```
+
+### Build Issues
+```bash
+# Android
+cd android && ./gradlew clean && cd ..
+npm run android
+
+# iOS
+cd ios && rm -rf Pods Podfile.lock && cd ..
+npx react-native setup:ios-pods
+npm run ios
+```
+
+## Contributing
+
+1. Create feature branch: `git checkout -b feature/my-feature`
+2. Keep components small and focused
+3. Use proper TypeScript types
+4. Write unit tests
+5. Follow clean code principles
+6. Submit PR with description
+
+## Resources
+
+- [React Native Docs](https://reactnative.dev)
+- [React Navigation](https://reactnavigation.org)
+- [TypeScript Handbook](https://www.typescriptlang.org/docs/)
+- [Ubuntu Network API Docs](../api/README.md)
+
+## License
+
+MIT
+
+## Support
+
+Open an issue or contact the team for help.
